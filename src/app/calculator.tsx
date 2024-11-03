@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useDeferredValue, Suspense, useMemo } from "react";
+import { useState, Suspense, useMemo } from "react";
 import { Line, LineChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 
@@ -16,7 +16,12 @@ import { Checkbox } from "~/components/ui/checkbox";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Slider } from "~/components/ui/slider";
-import { yearlyRepaymentOld, yearlyRepaymentNew } from "./data";
+import {
+  yearlyRepaymentOld,
+  yearlyRepaymentNew,
+  type RepaymentData,
+  calculateRepaymentData,
+} from "./data";
 import { cn } from "~/lib/utils";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "~/components/ui/button";
@@ -39,69 +44,6 @@ const chartConfig = {
     color: "#60a5fa",
   },
 } satisfies ChartConfig;
-
-type RepaymentData = {
-  year: number;
-  old: number;
-  new: number;
-};
-
-function calculateRepaymentData(
-  income: number,
-  initialLoan: number,
-  twentyPercentCut: boolean,
-): RepaymentData[] {
-  // Validate inputs
-  if (income <= 0 || initialLoan <= 0) {
-    return Array(30)
-      .fill(0)
-      .map((_, year) => ({ year, old: initialLoan, new: initialLoan }));
-  }
-
-  const data = [];
-  let remainingLoanBefore = initialLoan;
-  let remainingLoanAfter = initialLoan;
-  const oldRepayment = yearlyRepaymentOld(income);
-  const newRepayment = yearlyRepaymentNew(income);
-
-  // If no repayment is being made, show flat line
-  if (oldRepayment === 0 && newRepayment === 0) {
-    return Array(30)
-      .fill(0)
-      .map((_, year) => ({
-        year,
-        old: initialLoan,
-        new: initialLoan,
-      }));
-  }
-
-  // Calculate until loan is paid off or 30 years reached
-  for (
-    let year = 0;
-    year < 30 && (remainingLoanBefore > 0 || remainingLoanAfter > 0);
-    year++
-  ) {
-    // Apply 20% cut at start of year 1 if enabled
-    if (year === 1 && twentyPercentCut) {
-      remainingLoanAfter = remainingLoanAfter * 0.8;
-    }
-
-    data.push({
-      year,
-      old: Math.max(0, remainingLoanBefore),
-      new: Math.max(0, remainingLoanAfter),
-    });
-    remainingLoanBefore = Math.max(0, remainingLoanBefore - oldRepayment);
-    remainingLoanAfter = Math.max(0, remainingLoanAfter - newRepayment);
-  }
-
-  // Add final zero if both loans are paid off
-  if (remainingLoanBefore === 0 && remainingLoanAfter === 0) {
-    data.push({ year: data.length, old: 0, new: 0 });
-  }
-
-  return data;
-}
 
 type LoanRepaymentChartProps = {
   data: RepaymentData[];
@@ -152,6 +94,7 @@ type InputWithSliderProps = {
   onChange: (value: number) => void;
   min: number;
   max: number;
+  variant?: "currency" | "percentage";
 };
 
 function InputWithSlider({
@@ -160,16 +103,34 @@ function InputWithSlider({
   onChange,
   min,
   max,
+  variant = "currency",
 }: InputWithSliderProps) {
-  const formatNumber = (num: number) => num.toLocaleString("en-US");
-  const parseNumber = (str: string) => parseInt(str.replace(/,/g, ""), 10);
+  const formatNumber = (num: number) => {
+    if (variant === "currency") {
+      return num.toLocaleString("en-US", {
+        style: "currency",
+        currency: "USD",
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      });
+    } else {
+      return num.toFixed(1) + "%";
+    }
+  };
+
+  const parseNumber = (str: string) => {
+    if (variant === "currency") {
+      return parseInt(str.replace(/[^\d]/g, ""), 10);
+    } else {
+      return parseFloat(str.replace("%", ""));
+    }
+  };
 
   return (
     <div>
       <Label>{label}</Label>
       <div className="flex items-center gap-2">
         <div className="flex w-48 items-center gap-1">
-          <span className="text-sm">$</span>
           <Input
             type="text"
             value={formatNumber(value)}
@@ -188,6 +149,7 @@ function InputWithSlider({
           onValueChange={([value]) => value !== undefined && onChange(value)}
           min={min}
           max={max}
+          step={0.1}
         />
       </div>
     </div>
@@ -214,18 +176,20 @@ function CalculatorContent() {
     () => Number(searchParams.get("salary")) || 60000,
   );
 
+  const [cpi, setCpi] = useState<number>(
+    () => Number(searchParams.get("cpi")) || 3,
+  );
+
   const [repaymentScheme, setRepaymentScheme] = useState<boolean>(true);
 
   const [twentyPercentCut, setTwentyPercentCut] = useState<boolean>(true);
 
-  const deferredSalary = useDeferredValue(salary);
-
   const repaymentData = useMemo(() => {
-    return calculateRepaymentData(deferredSalary, hecsDebt, twentyPercentCut);
-  }, [deferredSalary, hecsDebt, twentyPercentCut]);
+    return calculateRepaymentData(salary, hecsDebt, twentyPercentCut, cpi);
+  }, [salary, hecsDebt, twentyPercentCut, cpi]);
 
-  const oldRepayment = yearlyRepaymentOld(deferredSalary);
-  const newRepayment = yearlyRepaymentNew(deferredSalary);
+  const oldRepayment = yearlyRepaymentOld(salary, cpi);
+  const newRepayment = yearlyRepaymentNew(salary, cpi);
 
   const repaymentDifference = Math.abs(oldRepayment - newRepayment);
   const differenceDirection = oldRepayment > newRepayment ? "less" : "more";
@@ -234,6 +198,7 @@ function CalculatorContent() {
     const params = new URLSearchParams();
     params.set("debt", debt.toString());
     params.set("salary", income.toString());
+    params.set("cpi", cpi.toString());
     router.replace(`?${params.toString()}`);
   };
 
@@ -245,6 +210,11 @@ function CalculatorContent() {
   const handleSalaryChange = (value: number) => {
     setSalary(value);
     updateURL(hecsDebt, value);
+  };
+
+  const handleCpiChange = (value: number) => {
+    setCpi(value);
+    updateURL(hecsDebt, salary);
   };
 
   const handleGetLink = () => {
@@ -264,6 +234,7 @@ function CalculatorContent() {
 
   return (
     <div>
+      <h2 className="text-2xl">The Basics</h2>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="flex flex-col gap-4">
           <InputWithSlider
@@ -316,6 +287,18 @@ function CalculatorContent() {
         </div>
       </div>
       <div className="pt-10" />
+      <h2 className="text-2xl">Advanced Options</h2>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <InputWithSlider
+          label="CPI"
+          value={cpi}
+          onChange={handleCpiChange}
+          min={0}
+          max={15}
+          variant="percentage"
+        />
+      </div>
+      <div className="pt-10" />
       <Card>
         <CardHeader>
           <CardTitle className="text-3xl font-normal">Results</CardTitle>
@@ -350,7 +333,7 @@ function CalculatorContent() {
       </Card>
       <div className="pt-10" />
       <div className="flex flex-col gap-2">
-        <h2 className="text-2xl">Total Loan</h2>
+        <h2 className="text-2xl">Paying Off Your Debt</h2>
         <LoanRepaymentChart data={repaymentData} />
       </div>
     </div>

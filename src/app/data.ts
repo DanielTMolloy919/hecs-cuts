@@ -1,18 +1,20 @@
-export function yearlyRepaymentNew(income: number) {
+export function yearlyRepaymentNew(income: number, cpi: number) {
   // Handle invalid inputs
   if (typeof income !== "number" || isNaN(income) || income <= 0) {
     return 0;
   }
 
-  if (income <= 67000) {
+  const adjustedIncome = income * (1 + cpi / 100);
+
+  if (adjustedIncome <= 67000) {
     return 0;
   }
 
-  if (income <= 124999) {
-    return (income - 67000) * 0.15;
+  if (adjustedIncome <= 124999) {
+    return (adjustedIncome - 67000) * 0.15;
   }
 
-  return 8700 + (income - 125000) * 0.17;
+  return 8700 + (adjustedIncome - 125000) * 0.17;
 }
 
 export type RepaymentBand = {
@@ -21,21 +23,23 @@ export type RepaymentBand = {
   rate: number; // Percentage as decimal
 };
 
-export function yearlyRepaymentOld(income: number) {
+export function yearlyRepaymentOld(income: number, cpi: number) {
   // Handle invalid inputs
   if (typeof income !== "number" || isNaN(income) || income <= 0) {
     return 0;
   }
+
+  const adjustedIncome = income * (1 + cpi / 100);
 
   // Sort the scheme by minIncome to ensure correct processing
   const sortedScheme = [...fy2024].sort((a, b) => a.minIncome - b.minIncome);
 
   for (const band of sortedScheme) {
     if (
-      income >= band.minIncome &&
-      (band.maxIncome === null || income <= band.maxIncome)
+      adjustedIncome >= band.minIncome &&
+      (band.maxIncome === null || adjustedIncome <= band.maxIncome)
     ) {
-      return income * band.rate;
+      return adjustedIncome * band.rate;
     }
   }
   return 0;
@@ -62,3 +66,69 @@ export const fy2024: RepaymentBand[] = [
   { minIncome: 150627, maxIncome: 159663, rate: 0.095 },
   { minIncome: 159664, maxIncome: null, rate: 0.1 },
 ];
+
+export type RepaymentData = {
+  year: number;
+  old: number;
+  new: number;
+};
+
+export function calculateRepaymentData(
+  income: number,
+  initialLoan: number,
+  twentyPercentCut: boolean,
+  cpi: number,
+): RepaymentData[] {
+  // Validate inputs
+  if (income <= 0 || initialLoan <= 0) {
+    return Array(30)
+      .fill(0)
+      .map((_, year) => ({ year, old: initialLoan, new: initialLoan }));
+  }
+
+  const data = [];
+  let remainingLoanOld = initialLoan;
+  let remainingLoanNew = initialLoan;
+
+  const oldRepayment = yearlyRepaymentOld(income, cpi);
+  const newRepayment = yearlyRepaymentNew(income, cpi);
+
+  // If no repayment is being made, show flat line
+  if (oldRepayment === 0 && newRepayment === 0) {
+    return Array(30)
+      .fill(0)
+      .map((_, year) => ({
+        year,
+        old: initialLoan,
+        new: initialLoan,
+      }));
+  }
+
+  // Calculate until loan is paid off or 30 years reached
+  for (
+    let year = 0;
+    year < 30 && (remainingLoanOld > 0 || remainingLoanNew > 0);
+    year++
+  ) {
+    // Apply 20% cut at start of year 1 if enabled
+    if (year === 1 && twentyPercentCut) {
+      remainingLoanNew = remainingLoanNew * 0.8;
+    }
+
+    data.push({
+      year,
+      old: Math.max(0, remainingLoanOld),
+      new: Math.max(0, remainingLoanNew),
+    });
+
+    remainingLoanOld = Math.max(0, remainingLoanOld - oldRepayment);
+    remainingLoanNew = Math.max(0, remainingLoanNew - newRepayment);
+  }
+
+  // Add final zero if both loans are paid off
+  if (remainingLoanOld === 0 && remainingLoanNew === 0) {
+    data.push({ year: data.length, old: 0, new: 0 });
+  }
+
+  return data;
+}
