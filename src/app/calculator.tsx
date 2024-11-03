@@ -14,23 +14,15 @@ import { Checkbox } from "~/components/ui/checkbox";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Slider } from "~/components/ui/slider";
+import {
+  calculateRepayment,
+  fy2024,
+  RepaymentBand,
+  RepaymentScheme,
+} from "./data";
 
 const MAX_HECS_DEBT = 174998;
 const MAX_SALARY = 180000;
-
-const dummyLoanRepaymentData = [
-  { year: 0, before: 50000, after: 45000 },
-  { year: 1, before: 45000, after: 40000 },
-  { year: 2, before: 40000, after: 35000 },
-  { year: 3, before: 35000, after: 30000 },
-  { year: 4, before: 30000, after: 25000 },
-  { year: 5, before: 25000, after: 20000 },
-  { year: 6, before: 20000, after: 15000 },
-  { year: 7, before: 15000, after: 10000 },
-  { year: 8, before: 10000, after: 5000 },
-  { year: 9, before: 5000, after: 0 },
-  { year: 10, before: 0, after: 0 },
-];
 
 const chartConfig = {
   before: {
@@ -43,10 +35,38 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
-function LoanRepaymentChart() {
+function repaymentData(
+  income: number,
+  scheme: RepaymentScheme,
+  initialLoan: number,
+) {
+  const data = [];
+  let remainingLoan = initialLoan;
+
+  while (remainingLoan > 0) {
+    const yearlyRepayment = calculateRepayment(income, scheme);
+    remainingLoan = Math.max(0, remainingLoan - yearlyRepayment);
+    data.push({ year: data.length, before: remainingLoan });
+  }
+  return data;
+}
+
+type LoanRepaymentChartProps = {
+  income: number;
+  scheme: RepaymentScheme;
+  initialLoan: number;
+};
+
+function LoanRepaymentChart({
+  income,
+  scheme,
+  initialLoan,
+}: LoanRepaymentChartProps) {
+  const data = repaymentData(income, scheme, initialLoan);
+
   return (
     <ChartContainer config={chartConfig} className="min-h-[400px] w-full">
-      <LineChart data={dummyLoanRepaymentData}>
+      <LineChart data={data}>
         <CartesianGrid strokeDasharray="3 3" />
         <XAxis
           dataKey="year"
@@ -175,7 +195,11 @@ export default function Calculator() {
       <div className="pt-10" />
       <div className="flex flex-col gap-2">
         <h2 className="text-2xl">Loan Repayment</h2>
-        <LoanRepaymentChart />
+        <LoanRepaymentChart
+          income={salary}
+          scheme={fy2024}
+          initialLoan={hecsDebt}
+        />
       </div>
       <div className="h-32" />
     </div>
