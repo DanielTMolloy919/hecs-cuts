@@ -177,7 +177,7 @@ function CalculatorContent() {
   );
 
   const [cpi, setCpi] = useState<number>(
-    () => Number(searchParams.get("cpi")) || 3,
+    () => Number(searchParams.get("cpi")) || 2.5,
   );
 
   const [repaymentScheme, setRepaymentScheme] = useState<boolean>(true);

@@ -93,17 +93,6 @@ export function calculateRepaymentData(
   const oldRepayment = yearlyRepaymentOld(income, cpi);
   const newRepayment = yearlyRepaymentNew(income, cpi);
 
-  // If no repayment is being made, show flat line
-  if (oldRepayment === 0 && newRepayment === 0) {
-    return Array(30)
-      .fill(0)
-      .map((_, year) => ({
-        year,
-        old: initialLoan,
-        new: initialLoan,
-      }));
-  }
-
   // Calculate until loan is paid off or 30 years reached
   for (
     let year = 0;
