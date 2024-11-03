@@ -38,6 +38,9 @@ const config = {
       }
     ],
     "@typescript-eslint/ban-ts-comment": "off"
-  }
+  },
+  "ignorePatterns": [
+    "src/components/ui/chart.tsx"
+  ]
 };
 module.exports = config;
