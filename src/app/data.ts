@@ -1,20 +1,35 @@
+export function yearlyRepaymentNew(income: number) {
+  // Handle invalid inputs
+  if (typeof income !== "number" || isNaN(income) || income <= 0) {
+    return 0;
+  }
+
+  if (income <= 67000) {
+    return 0;
+  }
+
+  if (income <= 124999) {
+    return (income - 67000) * 0.15;
+  }
+
+  return 8700 + (income - 125000) * 0.17;
+}
+
 export type RepaymentBand = {
   minIncome: number;
   maxIncome: number | null; // null for the highest band
   rate: number; // Percentage as decimal
 };
 
-export type RepaymentScheme = RepaymentBand[];
-
-export function calculateRepayment(income: number, scheme: RepaymentScheme) {
+export function yearlyRepaymentOld(income: number) {
   // Handle invalid inputs
-  if (typeof income !== 'number' || isNaN(income) || income <= 0) {
+  if (typeof income !== "number" || isNaN(income) || income <= 0) {
     return 0;
   }
-  
+
   // Sort the scheme by minIncome to ensure correct processing
-  const sortedScheme = [...scheme].sort((a, b) => a.minIncome - b.minIncome);
-  
+  const sortedScheme = [...fy2024].sort((a, b) => a.minIncome - b.minIncome);
+
   for (const band of sortedScheme) {
     if (
       income >= band.minIncome &&
@@ -26,7 +41,7 @@ export function calculateRepayment(income: number, scheme: RepaymentScheme) {
   return 0;
 }
 
-export const fy2024: RepaymentScheme = [
+export const fy2024: RepaymentBand[] = [
   { minIncome: 0, maxIncome: 54434, rate: 0 },
   { minIncome: 54435, maxIncome: 62850, rate: 0.01 },
   { minIncome: 62851, maxIncome: 66620, rate: 0.02 },

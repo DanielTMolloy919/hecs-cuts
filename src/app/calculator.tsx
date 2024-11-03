@@ -2,6 +2,8 @@
 
 import { useState, useDeferredValue } from "react";
 import { Line, LineChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
+
 import {
   type ChartConfig,
   ChartContainer,
@@ -14,15 +16,11 @@ import { Checkbox } from "~/components/ui/checkbox";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Slider } from "~/components/ui/slider";
-import {
-  calculateRepayment,
-  fy2024,
-  RepaymentBand,
-  RepaymentScheme,
-} from "./data";
+import { yearlyRepaymentOld, yearlyRepaymentNew } from "./data";
+import { cn } from "~/lib/utils";
 
 const MAX_HECS_DEBT = 174998;
-const MAX_SALARY = 180000;
+const MAX_SALARY = 300000;
 
 const chartConfig = {
   before: {
@@ -35,38 +33,45 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
-function repaymentData(
-  income: number,
-  scheme: RepaymentScheme,
-  initialLoan: number,
-) {
+function repaymentData(income: number, initialLoan: number) {
   // Validate inputs
   if (income <= 0 || initialLoan <= 0) {
     return Array(30)
       .fill(0)
-      .map((_, year) => ({ year, before: initialLoan }));
+      .map((_, year) => ({ year, before: initialLoan, after: initialLoan }));
   }
 
   const data = [];
-  let remainingLoan = initialLoan;
-  const yearlyRepayment = calculateRepayment(income, scheme);
+  let remainingLoanBefore = initialLoan;
+  let remainingLoanAfter = initialLoan;
+  const oldRepayment = yearlyRepaymentOld(income);
+  const newRepayment = yearlyRepaymentNew(income);
 
   // If no repayment is being made, show flat line
-  if (yearlyRepayment === 0) {
+  if (oldRepayment === 0 && newRepayment === 0) {
     return Array(30)
       .fill(0)
-      .map((_, year) => ({ year, before: initialLoan }));
+      .map((_, year) => ({ year, before: initialLoan, after: initialLoan }));
   }
 
   // Calculate until loan is paid off or 30 years reached
-  for (let year = 0; year < 30 && remainingLoan > 0; year++) {
-    data.push({ year, before: remainingLoan });
-    remainingLoan = Math.max(0, remainingLoan - yearlyRepayment);
+  for (
+    let year = 0;
+    year < 30 && (remainingLoanBefore > 0 || remainingLoanAfter > 0);
+    year++
+  ) {
+    data.push({
+      year,
+      before: Math.max(0, remainingLoanBefore),
+      after: Math.max(0, remainingLoanAfter),
+    });
+    remainingLoanBefore = Math.max(0, remainingLoanBefore - oldRepayment);
+    remainingLoanAfter = Math.max(0, remainingLoanAfter - newRepayment);
   }
 
-  // Add final zero if loan is paid off
-  if (remainingLoan === 0) {
-    data.push({ year: data.length, before: 0 });
+  // Add final zero if both loans are paid off
+  if (remainingLoanBefore === 0 && remainingLoanAfter === 0) {
+    data.push({ year: data.length, before: 0, after: 0 });
   }
 
   return data;
@@ -74,16 +79,11 @@ function repaymentData(
 
 type LoanRepaymentChartProps = {
   income: number;
-  scheme: RepaymentScheme;
   initialLoan: number;
 };
 
-function LoanRepaymentChart({
-  income,
-  scheme,
-  initialLoan,
-}: LoanRepaymentChartProps) {
-  const data = repaymentData(income, scheme, initialLoan);
+function LoanRepaymentChart({ income, initialLoan }: LoanRepaymentChartProps) {
+  const data = repaymentData(income, initialLoan);
 
   return (
     <ChartContainer config={chartConfig} className="min-h-[400px] w-full">
@@ -110,6 +110,13 @@ function LoanRepaymentChart({
           strokeWidth={2}
           dot={false}
           strokeDasharray="5 5"
+        />
+        <Line
+          type="monotone"
+          dataKey="after"
+          stroke="var(--color-after)"
+          strokeWidth={2}
+          dot={false}
         />
       </LineChart>
     </ChartContainer>
@@ -173,6 +180,12 @@ export default function Calculator() {
 
   const deferredSalary = useDeferredValue(salary);
 
+  const oldRepayment = yearlyRepaymentOld(deferredSalary);
+  const newRepayment = yearlyRepaymentNew(deferredSalary);
+
+  const repaymentDifference = Math.abs(oldRepayment - newRepayment);
+  const differenceDirection = oldRepayment > newRepayment ? "less" : "more";
+
   return (
     <div>
       <div className="flex flex-col gap-4">
@@ -192,30 +205,52 @@ export default function Calculator() {
         />
       </div>
       <div className="pt-10" />
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-3xl font-normal">Results</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p>
+            Your yearly repayment was{" "}
+            <span className={cn("font-bold")}>
+              ${oldRepayment.toLocaleString()}
+            </span>
+          </p>
+          <p>
+            Your yearly repayment will be{" "}
+            <span
+              className={cn(
+                "font-bold",
+                oldRepayment < newRepayment ? "text-red-500" : "text-green-500",
+              )}
+            >
+              ${newRepayment.toLocaleString()} ($
+              {repaymentDifference.toLocaleString()} {differenceDirection})
+            </span>
+          </p>
+        </CardContent>
+      </Card>
+      <div className="pt-10" />
       <div className="flex flex-col gap-2">
         <h2 className="text-2xl">Labour&apos;s changes</h2>
         <div className="flex items-center space-x-2">
           <Checkbox
-            id="wage_indexation"
+            id="new_repayment_scheme"
             checked={wageIndexation}
             onCheckedChange={(checked) => setWageIndexation(checked as boolean)}
           />
           <label
-            htmlFor="wage_indexation"
+            htmlFor="new_repayment_scheme"
             className="text-sm leading-none text-gray-800 peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
           >
-            Indexed to lower of CPI or Wage Growth
+            New Marginal Repayment Scheme
           </label>
         </div>
       </div>
       <div className="pt-10" />
       <div className="flex flex-col gap-2">
         <h2 className="text-2xl">Loan Repayment</h2>
-        <LoanRepaymentChart
-          income={deferredSalary}
-          scheme={fy2024}
-          initialLoan={hecsDebt}
-        />
+        <LoanRepaymentChart income={deferredSalary} initialLoan={hecsDebt} />
       </div>
       <div className="h-32" />
     </div>
