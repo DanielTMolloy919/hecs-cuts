@@ -7,7 +7,15 @@ export type RepaymentBand = {
 export type RepaymentScheme = RepaymentBand[];
 
 export function calculateRepayment(income: number, scheme: RepaymentScheme) {
-  for (const band of scheme) {
+  // Handle invalid inputs
+  if (typeof income !== 'number' || isNaN(income) || income <= 0) {
+    return 0;
+  }
+  
+  // Sort the scheme by minIncome to ensure correct processing
+  const sortedScheme = [...scheme].sort((a, b) => a.minIncome - b.minIncome);
+  
+  for (const band of sortedScheme) {
     if (
       income >= band.minIncome &&
       (band.maxIncome === null || income <= band.maxIncome)

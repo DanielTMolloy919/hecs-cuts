@@ -40,14 +40,35 @@ function repaymentData(
   scheme: RepaymentScheme,
   initialLoan: number,
 ) {
+  // Validate inputs
+  if (income <= 0 || initialLoan <= 0) {
+    return Array(30)
+      .fill(0)
+      .map((_, year) => ({ year, before: initialLoan }));
+  }
+
   const data = [];
   let remainingLoan = initialLoan;
+  const yearlyRepayment = calculateRepayment(income, scheme);
 
-  while (remainingLoan > 0) {
-    const yearlyRepayment = calculateRepayment(income, scheme);
-    remainingLoan = Math.max(0, remainingLoan - yearlyRepayment);
-    data.push({ year: data.length, before: remainingLoan });
+  // If no repayment is being made, show flat line
+  if (yearlyRepayment === 0) {
+    return Array(30)
+      .fill(0)
+      .map((_, year) => ({ year, before: initialLoan }));
   }
+
+  // Calculate until loan is paid off or 30 years reached
+  for (let year = 0; year < 30 && remainingLoan > 0; year++) {
+    data.push({ year, before: remainingLoan });
+    remainingLoan = Math.max(0, remainingLoan - yearlyRepayment);
+  }
+
+  // Add final zero if loan is paid off
+  if (remainingLoan === 0) {
+    data.push({ year: data.length, before: 0 });
+  }
+
   return data;
 }
 
@@ -89,13 +110,6 @@ function LoanRepaymentChart({
           strokeWidth={2}
           dot={false}
           strokeDasharray="5 5"
-        />
-        <Line
-          type="monotone"
-          dataKey="after"
-          stroke="var(--color-after)"
-          strokeWidth={2}
-          dot={false}
         />
       </LineChart>
     </ChartContainer>
