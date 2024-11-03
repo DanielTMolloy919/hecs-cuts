@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useDeferredValue } from "react";
 import { Line, LineChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import {
   type ChartConfig,
@@ -157,6 +157,8 @@ export default function Calculator() {
 
   const [wageIndexation, setWageIndexation] = useState<boolean>(true);
 
+  const deferredSalary = useDeferredValue(salary);
+
   return (
     <div>
       <div className="flex flex-col gap-4">
@@ -196,7 +198,7 @@ export default function Calculator() {
       <div className="flex flex-col gap-2">
         <h2 className="text-2xl">Loan Repayment</h2>
         <LoanRepaymentChart
-          income={salary}
+          income={deferredSalary}
           scheme={fy2024}
           initialLoan={hecsDebt}
         />
