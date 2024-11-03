@@ -18,6 +18,13 @@ import { Label } from "~/components/ui/label";
 import { Slider } from "~/components/ui/slider";
 import { yearlyRepaymentOld, yearlyRepaymentNew } from "./data";
 import { cn } from "~/lib/utils";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Button } from "~/components/ui/button";
+import { Link } from "lucide-react";
+import { toast } from "sonner";
+
+// Add window location type since we're in a client component
+declare const window: Window & typeof globalThis;
 
 const MAX_HECS_DEBT = 174998;
 const MAX_SALARY = 300000;
@@ -172,9 +179,16 @@ function InputWithSlider({
 }
 
 export default function Calculator() {
-  const [hecsDebt, setHecsDebt] = useState<number>(30000);
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const [salary, setSalary] = useState<number>(60000);
+  const [hecsDebt, setHecsDebt] = useState<number>(
+    () => Number(searchParams.get("debt")) || 30000,
+  );
+
+  const [salary, setSalary] = useState<number>(
+    () => Number(searchParams.get("salary")) || 60000,
+  );
 
   const [wageIndexation, setWageIndexation] = useState<boolean>(true);
 
@@ -186,20 +200,52 @@ export default function Calculator() {
   const repaymentDifference = Math.abs(oldRepayment - newRepayment);
   const differenceDirection = oldRepayment > newRepayment ? "less" : "more";
 
+  const updateURL = (debt: number, income: number) => {
+    const params = new URLSearchParams();
+    params.set("debt", debt.toString());
+    params.set("salary", income.toString());
+    router.replace(`?${params.toString()}`);
+  };
+
+  const handleHecsDebtChange = (value: number) => {
+    setHecsDebt(value);
+    updateURL(value, salary);
+  };
+
+  const handleSalaryChange = (value: number) => {
+    setSalary(value);
+    updateURL(hecsDebt, value);
+  };
+
+  const handleGetLink = () => {
+    // Get the current URL
+    const url = window.location.href;
+
+    // Copy to clipboard using the Clipboard API
+    navigator.clipboard.writeText(url).then(
+      () => {
+        toast.success("Link copied to clipboard");
+      },
+      () => {
+        toast.error("Failed to copy link");
+      },
+    );
+  };
+
   return (
     <div>
       <div className="flex flex-col gap-4">
         <InputWithSlider
           label="How big is your HECS debt?"
           value={hecsDebt}
-          onChange={setHecsDebt}
+          onChange={handleHecsDebtChange}
           min={0}
           max={MAX_HECS_DEBT}
         />
         <InputWithSlider
           label="How much do you earn a year?"
           value={salary}
-          onChange={setSalary}
+          onChange={handleSalaryChange}
           min={0}
           max={MAX_SALARY}
         />
@@ -228,6 +274,13 @@ export default function Calculator() {
               {repaymentDifference.toLocaleString()} {differenceDirection})
             </span>
           </p>
+          <div className="pt-4" />
+          <div className="flex items-center justify-end gap-2">
+            <span>Share this result</span>
+            <Button variant="outline" onClick={handleGetLink}>
+              <Link /> Get Link
+            </Button>
+          </div>
         </CardContent>
       </Card>
       <div className="pt-10" />
