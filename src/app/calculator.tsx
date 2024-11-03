@@ -135,6 +135,8 @@ export default function Calculator() {
 
   const [salary, setSalary] = useState<number>(60000);
 
+  const [wageIndexation, setWageIndexation] = useState<boolean>(true);
+
   return (
     <div>
       <div className="flex flex-col gap-4">
@@ -157,7 +159,11 @@ export default function Calculator() {
       <div className="flex flex-col gap-2">
         <h2 className="text-2xl">Labour&apos;s changes</h2>
         <div className="flex items-center space-x-2">
-          <Checkbox id="wage_indexation" />
+          <Checkbox
+            id="wage_indexation"
+            checked={wageIndexation}
+            onCheckedChange={(checked) => setWageIndexation(checked as boolean)}
+          />
           <label
             htmlFor="wage_indexation"
             className="text-sm leading-none text-gray-800 peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
