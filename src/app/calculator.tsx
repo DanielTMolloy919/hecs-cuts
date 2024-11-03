@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useDeferredValue } from "react";
+import { useState, useDeferredValue, Suspense } from "react";
 import { Line, LineChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 
@@ -179,6 +179,14 @@ function InputWithSlider({
 }
 
 export default function Calculator() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <CalculatorContent />
+    </Suspense>
+  );
+}
+
+function CalculatorContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -190,7 +198,7 @@ export default function Calculator() {
     () => Number(searchParams.get("salary")) || 60000,
   );
 
-  const [wageIndexation, setWageIndexation] = useState<boolean>(true);
+  const [repaymentScheme, setRepaymentScheme] = useState<boolean>(true);
 
   const deferredSalary = useDeferredValue(salary);
 
@@ -234,21 +242,41 @@ export default function Calculator() {
 
   return (
     <div>
-      <div className="flex flex-col gap-4">
-        <InputWithSlider
-          label="How big is your HECS debt?"
-          value={hecsDebt}
-          onChange={handleHecsDebtChange}
-          min={0}
-          max={MAX_HECS_DEBT}
-        />
-        <InputWithSlider
-          label="How much do you earn a year?"
-          value={salary}
-          onChange={handleSalaryChange}
-          min={0}
-          max={MAX_SALARY}
-        />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="flex flex-col gap-4">
+          <InputWithSlider
+            label="How big is your HECS debt?"
+            value={hecsDebt}
+            onChange={handleHecsDebtChange}
+            min={0}
+            max={MAX_HECS_DEBT}
+          />
+          <InputWithSlider
+            label="How much do you earn a year?"
+            value={salary}
+            onChange={handleSalaryChange}
+            min={0}
+            max={MAX_SALARY}
+          />
+        </div>
+        <div className="flex flex-col gap-2">
+          <h2 className="text-sm font-medium">Labour&apos;s changes</h2>
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="new_repayment_scheme"
+              checked={repaymentScheme}
+              onCheckedChange={(checked) =>
+                setRepaymentScheme(checked as boolean)
+              }
+            />
+            <label
+              htmlFor="new_repayment_scheme"
+              className="text-sm leading-none text-gray-800 peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            >
+              New Marginal Repayment Scheme
+            </label>
+          </div>
+        </div>
       </div>
       <div className="pt-10" />
       <Card>
@@ -283,23 +311,6 @@ export default function Calculator() {
           </div>
         </CardContent>
       </Card>
-      <div className="pt-10" />
-      <div className="flex flex-col gap-2">
-        <h2 className="text-2xl">Labour&apos;s changes</h2>
-        <div className="flex items-center space-x-2">
-          <Checkbox
-            id="new_repayment_scheme"
-            checked={wageIndexation}
-            onCheckedChange={(checked) => setWageIndexation(checked as boolean)}
-          />
-          <label
-            htmlFor="new_repayment_scheme"
-            className="text-sm leading-none text-gray-800 peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-          >
-            New Marginal Repayment Scheme
-          </label>
-        </div>
-      </div>
       <div className="pt-10" />
       <div className="flex flex-col gap-2">
         <h2 className="text-2xl">Loan Repayment</h2>
