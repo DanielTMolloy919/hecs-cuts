@@ -2,7 +2,7 @@ import Calculator from "./calculator";
 
 export default function HomePage() {
   return (
-    <main className="mx-auto flex min-h-screen max-w-screen-md flex-col">
+    <main className="mx-auto flex min-h-screen max-w-screen-sm flex-col">
       <div className="pt-10" />
       <h1 className="text-4xl">Labour&apos;s HECS Cuts</h1>
       <p className="text-gray-500">
