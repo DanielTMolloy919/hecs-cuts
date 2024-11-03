@@ -36,7 +36,8 @@ const config = {
           "attributes": false
         }
       }
-    ]
+    ],
+    "@typescript-eslint/ban-ts-comment": "off"
   }
-}
+};
 module.exports = config;
