@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useDeferredValue, Suspense } from "react";
+import { useState, useDeferredValue, Suspense, useMemo } from "react";
 import { Line, LineChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 
@@ -30,22 +30,32 @@ const MAX_HECS_DEBT = 174998;
 const MAX_SALARY = 300000;
 
 const chartConfig = {
-  before: {
+  old: {
     label: "Before Cuts",
     color: "#2563eb",
   },
-  after: {
+  new: {
     label: "After Cuts",
     color: "#60a5fa",
   },
 } satisfies ChartConfig;
 
-function repaymentData(income: number, initialLoan: number) {
+type RepaymentData = {
+  year: number;
+  old: number;
+  new: number;
+};
+
+function calculateRepaymentData(
+  income: number,
+  initialLoan: number,
+  twentyPercentCut: boolean,
+): RepaymentData[] {
   // Validate inputs
   if (income <= 0 || initialLoan <= 0) {
     return Array(30)
       .fill(0)
-      .map((_, year) => ({ year, before: initialLoan, after: initialLoan }));
+      .map((_, year) => ({ year, old: initialLoan, new: initialLoan }));
   }
 
   const data = [];
@@ -58,7 +68,11 @@ function repaymentData(income: number, initialLoan: number) {
   if (oldRepayment === 0 && newRepayment === 0) {
     return Array(30)
       .fill(0)
-      .map((_, year) => ({ year, before: initialLoan, after: initialLoan }));
+      .map((_, year) => ({
+        year,
+        old: initialLoan,
+        new: initialLoan,
+      }));
   }
 
   // Calculate until loan is paid off or 30 years reached
@@ -67,10 +81,15 @@ function repaymentData(income: number, initialLoan: number) {
     year < 30 && (remainingLoanBefore > 0 || remainingLoanAfter > 0);
     year++
   ) {
+    // Apply 20% cut at start of year 1 if enabled
+    if (year === 1 && twentyPercentCut) {
+      remainingLoanAfter = remainingLoanAfter * 0.8;
+    }
+
     data.push({
       year,
-      before: Math.max(0, remainingLoanBefore),
-      after: Math.max(0, remainingLoanAfter),
+      old: Math.max(0, remainingLoanBefore),
+      new: Math.max(0, remainingLoanAfter),
     });
     remainingLoanBefore = Math.max(0, remainingLoanBefore - oldRepayment);
     remainingLoanAfter = Math.max(0, remainingLoanAfter - newRepayment);
@@ -78,20 +97,17 @@ function repaymentData(income: number, initialLoan: number) {
 
   // Add final zero if both loans are paid off
   if (remainingLoanBefore === 0 && remainingLoanAfter === 0) {
-    data.push({ year: data.length, before: 0, after: 0 });
+    data.push({ year: data.length, old: 0, new: 0 });
   }
 
   return data;
 }
 
 type LoanRepaymentChartProps = {
-  income: number;
-  initialLoan: number;
+  data: RepaymentData[];
 };
 
-function LoanRepaymentChart({ income, initialLoan }: LoanRepaymentChartProps) {
-  const data = repaymentData(income, initialLoan);
-
+function LoanRepaymentChart({ data }: LoanRepaymentChartProps) {
   return (
     <ChartContainer config={chartConfig} className="min-h-[400px] w-full">
       <LineChart data={data}>
@@ -112,16 +128,16 @@ function LoanRepaymentChart({ income, initialLoan }: LoanRepaymentChartProps) {
         <ChartLegend content={<ChartLegendContent />} />
         <Line
           type="monotone"
-          dataKey="before"
-          stroke="var(--color-before)"
+          dataKey="old"
+          stroke="var(--color-old)"
           strokeWidth={2}
           dot={false}
           strokeDasharray="5 5"
         />
         <Line
           type="monotone"
-          dataKey="after"
-          stroke="var(--color-after)"
+          dataKey="new"
+          stroke="var(--color-new)"
           strokeWidth={2}
           dot={false}
         />
@@ -200,7 +216,13 @@ function CalculatorContent() {
 
   const [repaymentScheme, setRepaymentScheme] = useState<boolean>(true);
 
+  const [twentyPercentCut, setTwentyPercentCut] = useState<boolean>(true);
+
   const deferredSalary = useDeferredValue(salary);
+
+  const repaymentData = useMemo(() => {
+    return calculateRepaymentData(deferredSalary, hecsDebt, twentyPercentCut);
+  }, [deferredSalary, hecsDebt, twentyPercentCut]);
 
   const oldRepayment = yearlyRepaymentOld(deferredSalary);
   const newRepayment = yearlyRepaymentNew(deferredSalary);
@@ -276,6 +298,21 @@ function CalculatorContent() {
               New Marginal Repayment Scheme
             </label>
           </div>
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="twenty_percent_cut"
+              checked={twentyPercentCut}
+              onCheckedChange={(checked) =>
+                setTwentyPercentCut(checked as boolean)
+              }
+            />
+            <label
+              htmlFor="twenty_percent_cut"
+              className="text-sm leading-none text-gray-800 peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            >
+              20% Cut
+            </label>
+          </div>
         </div>
       </div>
       <div className="pt-10" />
@@ -313,10 +350,9 @@ function CalculatorContent() {
       </Card>
       <div className="pt-10" />
       <div className="flex flex-col gap-2">
-        <h2 className="text-2xl">Loan Repayment</h2>
-        <LoanRepaymentChart income={deferredSalary} initialLoan={hecsDebt} />
+        <h2 className="text-2xl">Total Loan</h2>
+        <LoanRepaymentChart data={repaymentData} />
       </div>
-      <div className="h-32" />
     </div>
   );
 }
